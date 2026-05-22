@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── PIE Digital NR-10 — Regras de segurança ─────────────────────────────
+    // Cada usuário autenticado acessa APENAS seus próprios dados.
+    // Estrutura: /users/{userId}/{colecao}/{documentId}
+    // Coleções: clientes, documentos, checklist, inspecoes, acoes, trabalhadores, epis
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // Links públicos de visualização do prontuário.
+    // O conteúdo é um snapshot do prontuário; visitantes só podem ler quando ativo.
+    match /publicShares/{shareId} {
+      allow read: if resource.data.active == true
+                  && resource.data.mode == "readonly";
+
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.ownerUid
+                    && request.resource.data.active == true
+                    && request.resource.data.mode == "readonly";
+
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerUid;
+    }
+
+    // Bloqueia qualquer outro caminho não previsto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
